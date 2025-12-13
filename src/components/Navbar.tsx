@@ -1,13 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useAuth } from "../Providers/UserProvider";
 
-const Navbar = () => {
-  const { user, loading } = useAuth();
+type Props = {
+  user: {
+    username: string;
+    role: string;
+  };
+};
 
-  if (loading) return null; // or a skeleton loader
-
+const Navbar = ({ user }: Props) => {
   return (
     <div className="flex items-center justify-between p-4 bg-white shadow-sm">
       {/* SEARCH BAR */}

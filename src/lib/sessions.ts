@@ -71,7 +71,6 @@ export async function destroySession() {
 
   for (const session of sessions) {
     if (await bcrypt.compare(sessionToken, session.refreshTokenHash)) {
-      console.log("Session Matches: ", session);
       await prisma.session.update({
         where: { id: session.id },
         data: { revoked: true },

@@ -154,9 +154,8 @@ export default function Menu({ user }: { user: User }) {
           )}
         </div>
       ))}
-
       {/* Logout */}
-      <form action={logout}>
+      <form action={logout} className="w-full">
         <button
           type="submit"
           className="flex items-center justify-center lg:justify-start gap-4 text-gray-500 py-2 md:px-2 rounded-md hover:bg-lamaSkyLight"
