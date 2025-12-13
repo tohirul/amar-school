@@ -24,7 +24,7 @@ async function main() {
       email: "superadmin@example.com",
       phone: "0100000000",
       password: hashedPassword,
-      role: Role.SUPER_ADMIN,
+      role: Role.ADMIN,
     },
   });
 

@@ -9,7 +9,6 @@ datasource db {
 
 enum Role {
   // System roles
-  SUPER_ADMIN
   ADMIN
   MANAGER
   COUNSELOR
