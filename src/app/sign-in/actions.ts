@@ -24,7 +24,7 @@ export async function login(prevState: any, formData: FormData) {
 
   if (!user.isActive) return { error: "Account is disabled" };
 
-  const { session, token } = await createSession(user.id);
+  const { session, token } = await createSession(user.id, user.role);
 
   if (session && token) redirect(`/${user.role.toLowerCase()}`);
 }
