@@ -10,6 +10,7 @@ const SESSION_TTL = 1000 * 60 * 60 * 24 * 7;
 
 export async function createSession(
   userId: string,
+  userRole: string,
   userAgent?: string,
   ip?: string
 ) {
@@ -34,6 +35,11 @@ export async function createSession(
     sameSite: "strict",
     path: "/",
     maxAge: SESSION_TTL / 1000,
+  });
+  cookies().set("session_role", userRole, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
   });
 
   return { session, token };
