@@ -6,31 +6,27 @@ import Table from "@/components/Table";
 import TableSearch from "@/components/TableSearch";
 import prisma from "@/lib/prisma";
 import { ITEM_PER_PAGE } from "@/lib/settings";
-import { Exam, Prisma, Role, Subject, Teacher, Class } from "@prisma/client";
+import { Period, Prisma, Role, Subject, Teacher, Class } from "@prisma/client";
 import Image from "next/image";
 import { getSession } from "@/lib/sessions";
 
-type ExamList = Exam & {
-  period: {
-    subject: Subject;
-    class: Class;
-    teacher: Teacher;
-  };
+type PeriodList = Period & {
+  subject: Subject;
+  teacher: Teacher;
   class: Class;
 };
 
-type SortField = "subject" | "title" | "class" | "teacher" | "date";
+type SortField = "name" | "subject" | "teacher" | "class";
 type SortOrder = "asc" | "desc";
 
-const SORT_MAP: Record<SortField, Prisma.ExamOrderByWithRelationInput> = {
-  subject: { period: { subject: { name: "asc" } } },
-  title: { title: "asc" },
-  class: { period: { class: { name: "asc" } } },
-  teacher: { period: { teacher: { name: "asc" } } },
-  date: { startTime: "asc" },
+const SORT_MAP: Record<SortField, Prisma.PeriodOrderByWithRelationInput> = {
+  name: { name: "asc" },
+  subject: { subject: { name: "asc" } },
+  teacher: { teacher: { name: "asc" } },
+  class: { class: { name: "asc" } },
 };
 
-const ExamListPage = async ({
+const PeriodListPage = async ({
   searchParams,
 }: {
   searchParams: { [key: string]: string | undefined };
@@ -53,7 +49,7 @@ const ExamListPage = async ({
   const sortField = searchParams.sort as SortField | undefined;
   const sortOrder: SortOrder = searchParams.order === "desc" ? "desc" : "asc";
 
-  const orderBy: Prisma.ExamOrderByWithRelationInput[] =
+  const orderBy: Prisma.PeriodOrderByWithRelationInput[] =
     sortField && SORT_MAP[sortField]
       ? [
           JSON.parse(
@@ -64,39 +60,32 @@ const ExamListPage = async ({
           ),
           { id: "asc" }, // tie-breaker
         ]
-      : [{ startTime: "asc" }, { id: "asc" }];
+      : [{ name: "asc" }];
 
   // -------------------------
-  // Filtering
+  // Filters
   // -------------------------
-  const query: Prisma.ExamWhereInput = { period: {} };
-
+  const query: Prisma.PeriodWhereInput = {};
   if (searchParams.search) {
-    query.period!.subject = {
-      name: { contains: searchParams.search, mode: "insensitive" },
-    };
+    query.name = { contains: searchParams.search, mode: "insensitive" };
   }
-
-  if (searchParams.classId)
-    query.period!.classId = parseInt(searchParams.classId);
-  if (searchParams.teacherId) query.period!.teacherId = searchParams.teacherId;
 
   // -------------------------
   // Role-based access
   // -------------------------
   switch (role) {
     case Role.TEACHER:
-      query.period!.teacherId = currentUser.teacherId!;
+      query.teacherId = currentUser.teacherId!;
       break;
     case Role.STUDENT:
-      query.period!.class = {
-        students: { some: { id: currentUser.studentId! } },
-      };
+      if (currentUser.studentId)
+        query.class = { students: { some: { id: currentUser.studentId } } };
       break;
     case Role.PARENT:
-      query.period!.class = {
-        students: { some: { parentId: currentUser.parentId! } },
-      };
+      if (currentUser.parentId)
+        query.class = {
+          students: { some: { parent: { id: currentUser.parentId } } },
+        };
       break;
   }
 
@@ -104,49 +93,28 @@ const ExamListPage = async ({
   // Fetch data
   // -------------------------
   const [data, count] = await prisma.$transaction([
-    prisma.exam.findMany({
+    prisma.period.findMany({
       where: query,
-      include: {
-        class: true,
-        subject: true,
-        period: {
-          select: {
-            subject: { select: { name: true } },
-            teacher: { select: { name: true, surname: true } },
-            class: { select: { name: true } },
-          },
-        },
-      },
+      include: { subject: true, teacher: true, class: true },
       orderBy,
       take: ITEM_PER_PAGE,
       skip: ITEM_PER_PAGE * (page - 1),
     }),
-    prisma.exam.count({ where: query }),
+    prisma.period.count({ where: query }),
   ]);
-  console.log(data);
+
   // -------------------------
   // Columns
   // -------------------------
   const columns = [
+    { header: "Period", accessor: "name", sortable: true, sortKey: "name" },
     {
-      header: "Exam Name",
-      accessor: "title",
-      sortable: true,
-      sortKey: "title",
-    },
-    {
-      header: "Exam Type",
-      accessor: "type",
-      sortable: false,
-      sortKey: "type",
-    },
-    {
-      header: "Subject Name",
+      header: "Subject",
       accessor: "subject",
+      className: "hidden md:table-cell",
       sortable: true,
       sortKey: "subject",
     },
-    { header: "Class", accessor: "class", sortable: true, sortKey: "class" },
     {
       header: "Teacher",
       accessor: "teacher",
@@ -155,42 +123,33 @@ const ExamListPage = async ({
       sortKey: "teacher",
     },
     {
-      header: "Date",
-      accessor: "date",
-      className: "hidden md:table-cell",
+      header: "Class",
+      accessor: "class",
+      className: "hidden lg:table-cell",
       sortable: true,
-      sortKey: "date",
+      sortKey: "class",
     },
-    ...(role === Role.ADMIN || role === Role.TEACHER
-      ? [{ header: "Actions", accessor: "action" }]
-      : []),
+    ...(role === Role.ADMIN ? [{ header: "Actions", accessor: "action" }] : []),
   ];
 
   // -------------------------
   // Row Renderer
   // -------------------------
-  const renderRow = (item: ExamList) => (
+  const renderRow = (item: PeriodList) => (
     <tr
       key={item.id}
       className="border-b border-gray-200 even:bg-slate-50 text-sm hover:bg-lamaPurpleLight"
     >
-      <td>{item.title}</td>
-      <td>{item.type.split("_").join(" ")}</td>
-      <td className="p-4">{item.period.subject.name}</td>
-      <td>{item?.class?.name}</td>
+      <td className="p-4 font-medium">{item.name}</td>
+      <td className="hidden md:table-cell">{item.subject.name}</td>
       <td className="hidden md:table-cell">
-        {item.period.teacher.name} {item.period.teacher.surname}
+        {item.teacher.name} {item.teacher.surname}
       </td>
-      <td className="hidden md:table-cell">
-        {new Intl.DateTimeFormat("en-US", {
-          dateStyle: "medium",
-          timeStyle: "short",
-        }).format(item.startTime)}
-      </td>
-      {(role === Role.ADMIN || role === Role.TEACHER) && (
+      <td className="hidden lg:table-cell">{item.class.name}</td>
+      {role === Role.ADMIN && (
         <td className="flex gap-2">
-          <FormContainer table="exam" type="update" data={item} />
-          <FormContainer table="exam" type="delete" id={item.id} />
+          <FormContainer table="period" type="update" data={item} />
+          <FormContainer table="period" type="delete" id={item.id} />
         </td>
       )}
     </tr>
@@ -200,7 +159,7 @@ const ExamListPage = async ({
     <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">
       {/* TOP */}
       <div className="flex justify-between items-center mb-4">
-        <h1 className="hidden md:block text-lg font-semibold">All Exams</h1>
+        <h1 className="hidden md:block text-lg font-semibold">All Periods</h1>
         <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
           <TableSearch />
           <div className="flex gap-4 items-center">
@@ -210,8 +169,8 @@ const ExamListPage = async ({
             <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
               <Image src="/sort.png" alt="" width={14} height={14} />
             </button>
-            {(role === Role.ADMIN || role === Role.TEACHER) && (
-              <FormContainer table="exam" type="create" />
+            {role === Role.ADMIN && (
+              <FormContainer table="period" type="create" />
             )}
           </div>
         </div>
@@ -225,7 +184,7 @@ const ExamListPage = async ({
         sort={{
           field: sortField,
           order: sortOrder,
-          basePath: "/list/exams",
+          basePath: "/list/periods",
           params: searchParams,
         }}
       />
@@ -236,4 +195,4 @@ const ExamListPage = async ({
   );
 };
 
-export default ExamListPage;
+export default PeriodListPage;

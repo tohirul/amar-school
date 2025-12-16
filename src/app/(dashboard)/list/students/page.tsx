@@ -11,6 +11,16 @@ import { getSession } from "@/lib/sessions";
 
 type StudentList = Student & { class: Class };
 
+type SortField = "name" | "username" | "class" | "createdAt";
+type SortOrder = "asc" | "desc";
+
+const SORT_MAP: Record<SortField, Prisma.StudentOrderByWithRelationInput> = {
+  name: { name: "asc" },
+  username: { username: "asc" },
+  class: { class: { name: "asc" } },
+  createdAt: { createdAt: "asc" },
+};
+
 const StudentListPage = async ({
   searchParams,
 }: {
@@ -25,14 +35,81 @@ const StudentListPage = async ({
 
   const role = currentUser.role;
 
+  // -------------------------
+  // Pagination
+  // -------------------------
+  const page = searchParams.page ? parseInt(searchParams.page) : 1;
+
+  // -------------------------
+  // Sorting
+  // -------------------------
+  const sortField = searchParams.sort as SortField | undefined;
+  const sortOrder: SortOrder = searchParams.order === "desc" ? "desc" : "asc";
+
+  const orderBy: Prisma.StudentOrderByWithRelationInput[] =
+    sortField && SORT_MAP[sortField]
+      ? [
+          JSON.parse(
+            JSON.stringify(SORT_MAP[sortField]).replace(
+              /"asc"/g,
+              `"${sortOrder}"`
+            )
+          ),
+          { id: "asc" }, // tie-breaker
+        ]
+      : [{ createdAt: "desc" }];
+
+  // -------------------------
+  // Filters
+  // -------------------------
+  const query: Prisma.StudentWhereInput = {};
+
+  if (searchParams.teacherId) {
+    query.class = {
+      periods: { some: { teacherId: searchParams.teacherId } },
+    };
+  }
+
+  if (searchParams.search) {
+    query.name = {
+      contains: searchParams.search,
+      mode: "insensitive",
+    };
+  }
+
+  // -------------------------
+  // Data Fetch
+  // -------------------------
+  const [data, count] = await prisma.$transaction([
+    prisma.student.findMany({
+      where: query,
+      include: { class: true },
+      orderBy,
+      take: ITEM_PER_PAGE,
+      skip: ITEM_PER_PAGE * (page - 1),
+    }),
+    prisma.student.count({ where: query }),
+  ]);
+
+  // -------------------------
+  // Columns
+  // -------------------------
   const columns = [
     { header: "Info", accessor: "info" },
     {
       header: "Student ID",
-      accessor: "studentId",
+      accessor: "username",
+      sortable: true,
+      sortKey: "username",
       className: "hidden md:table-cell",
     },
-    { header: "Grade", accessor: "grade", className: "hidden md:table-cell" },
+    {
+      header: "Class",
+      accessor: "class",
+      sortable: true,
+      sortKey: "class",
+      className: "hidden md:table-cell",
+    },
     { header: "Phone", accessor: "phone", className: "hidden lg:table-cell" },
     {
       header: "Address",
@@ -42,6 +119,9 @@ const StudentListPage = async ({
     ...(role === Role.ADMIN ? [{ header: "Actions", accessor: "action" }] : []),
   ];
 
+  // -------------------------
+  // Row Renderer
+  // -------------------------
   const renderRow = (item: StudentList) => (
     <tr
       key={item.id}
@@ -55,88 +135,61 @@ const StudentListPage = async ({
           height={40}
           className="md:hidden xl:block w-10 h-10 rounded-full object-cover"
         />
-        <div className="flex flex-col">
+        <div>
           <h3 className="font-semibold">{item.name}</h3>
           <p className="text-xs text-gray-500">{item.class.name}</p>
         </div>
       </td>
+
       <td className="hidden md:table-cell">{item.username}</td>
-      <td className="hidden md:table-cell">{item.class.name[0]}</td>
-      <td className="hidden md:table-cell">{item.phone}</td>
-      <td className="hidden md:table-cell">{item.address}</td>
-      <td>
-        <div className="flex items-center gap-2">
-          <Link href={`/list/students/${item.id}`}>
-            <button className="w-7 h-7 flex items-center justify-center rounded-full bg-lamaSky">
-              <Image src="/view.png" alt="" width={16} height={16} />
-            </button>
-          </Link>
-          {role === Role.ADMIN && (
+      <td className="hidden md:table-cell">{item.class.name}</td>
+      <td className="hidden lg:table-cell">{item.phone}</td>
+      <td className="hidden lg:table-cell">{item.address}</td>
+
+      {role === Role.ADMIN && (
+        <td>
+          <div className="flex gap-2">
+            <Link href={`/list/students/${item.id}`}>
+              <button className="w-7 h-7 rounded-full bg-lamaSky flex items-center justify-center">
+                <Image src="/view.png" alt="" width={16} height={16} />
+              </button>
+            </Link>
             <FormContainer table="student" type="delete" id={item.id} />
-          )}
-        </div>
-      </td>
+          </div>
+        </td>
+      )}
     </tr>
   );
-
-  const { page, ...queryParams } = searchParams;
-  const p = page ? parseInt(page) : 1;
-
-  const query: Prisma.StudentWhereInput = {};
-
-  if (queryParams) {
-    for (const [key, value] of Object.entries(queryParams)) {
-      if (value !== undefined) {
-        switch (key) {
-          case "teacherId":
-            query.class = {
-              lessons: { some: { teacherId: value } },
-            };
-            break;
-          case "search":
-            query.name = { contains: value, mode: "insensitive" };
-            break;
-          default:
-            break;
-        }
-      }
-    }
-  }
-
-  const [data, count] = await prisma.$transaction([
-    prisma.student.findMany({
-      where: query,
-      include: { class: true },
-      take: ITEM_PER_PAGE,
-      skip: ITEM_PER_PAGE * (p - 1),
-    }),
-    prisma.student.count({ where: query }),
-  ]);
 
   return (
     <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">
       {/* TOP */}
-      <div className="flex items-center justify-between">
+      <div className="flex justify-between items-center">
         <h1 className="hidden md:block text-lg font-semibold">All Students</h1>
-        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+
+        <div className="flex gap-4 items-center">
           <TableSearch />
-          <div className="flex items-center gap-4 self-end">
-            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
-              <Image src="/filter.png" alt="" width={14} height={14} />
-            </button>
-            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
-              <Image src="/sort.png" alt="" width={14} height={14} />
-            </button>
-            {role === Role.ADMIN && (
-              <FormContainer table="student" type="create" />
-            )}
-          </div>
+          {role === Role.ADMIN && (
+            <FormContainer table="student" type="create" />
+          )}
         </div>
       </div>
-      {/* LIST */}
-      <Table columns={columns} renderRow={renderRow} data={data} />
+
+      {/* TABLE */}
+      <Table
+        columns={columns}
+        renderRow={renderRow}
+        data={data}
+        sort={{
+          field: sortField,
+          order: sortOrder,
+          basePath: "/list/students",
+          params: searchParams,
+        }}
+      />
+
       {/* PAGINATION */}
-      <Pagination page={p} count={count} />
+      <Pagination page={page} count={count} />
     </div>
   );
 };

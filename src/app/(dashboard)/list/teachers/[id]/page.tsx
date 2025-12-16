@@ -25,7 +25,7 @@ const SingleTeacherPage = async ({
 
   const teacher:
     | (Teacher & {
-        _count: { subjects: number; lessons: number; classes: number };
+        _count: { subjects: number; periods: number; classes: number };
       })
     | null = await prisma.teacher.findUnique({
     where: { id },
@@ -33,7 +33,7 @@ const SingleTeacherPage = async ({
       _count: {
         select: {
           subjects: true,
-          lessons: true,
+          periods: true,
           classes: true,
         },
       },
@@ -107,9 +107,9 @@ const SingleTeacherPage = async ({
                 icon: "/singleBranch.png",
               },
               {
-                label: "Lessons",
-                value: teacher._count.lessons,
-                icon: "/singleLesson.png",
+                label: "Periods",
+                value: teacher._count.periods,
+                icon: "/singlePeriod.png",
               },
               {
                 label: "Classes",
@@ -159,8 +159,8 @@ const SingleTeacherPage = async ({
                 bg: "bg-lamaPurpleLight",
               },
               {
-                label: "Teacher's Lessons",
-                href: `/list/lessons?teacherId=${teacher.id}`,
+                label: "Teacher's Periods",
+                href: `/list/periods?teacherId=${teacher.id}`,
                 bg: "bg-lamaYellowLight",
               },
               {

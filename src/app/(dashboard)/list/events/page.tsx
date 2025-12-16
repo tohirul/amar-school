@@ -112,7 +112,7 @@ const EventListPage = async ({
     case Role.TEACHER:
       query.OR = [
         { classId: null },
-        { class: { lessons: { some: { teacherId: currentUserId } } } },
+        { class: { periods: { some: { teacherId: currentUserId } } } },
       ];
       break;
 

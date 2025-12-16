@@ -1,3 +1,5 @@
+"use server";
+
 import FormContainer from "@/components/FormContainer";
 import Pagination from "@/components/Pagination";
 import Table from "@/components/Table";
@@ -9,7 +11,19 @@ import Link from "next/link";
 import { ITEM_PER_PAGE } from "@/lib/settings";
 import { getSession } from "@/lib/sessions";
 
-type TeacherList = Teacher & { subjects: Subject[]; classes: Class[] };
+type TeacherList = Teacher & {
+  subjects: Subject[];
+  classes: Class[];
+};
+
+type SortField = "name" | "username" | "createdAt";
+type SortOrder = "asc" | "desc";
+
+const SORT_MAP: Record<SortField, Prisma.TeacherOrderByWithRelationInput> = {
+  name: { name: "asc" },
+  username: { username: "asc" },
+  createdAt: { createdAt: "asc" },
+};
 
 const TeacherListPage = async ({
   searchParams,
@@ -23,13 +37,77 @@ const TeacherListPage = async ({
     return <div className="p-4">Unauthorized</div>;
   }
 
-  const role = currentUser.role; // role from your session
+  const role = currentUser.role;
 
+  // -------------------------
+  // Pagination
+  // -------------------------
+  const page = searchParams.page ? parseInt(searchParams.page) : 1;
+
+  // -------------------------
+  // Sorting
+  // -------------------------
+  const sortField = searchParams.sort as SortField | undefined;
+  const sortOrder: SortOrder = searchParams.order === "desc" ? "desc" : "asc";
+
+  const orderBy: Prisma.TeacherOrderByWithRelationInput[] =
+    sortField && SORT_MAP[sortField]
+      ? [
+          JSON.parse(
+            JSON.stringify(SORT_MAP[sortField]).replace(
+              /"asc"/g,
+              `"${sortOrder}"`
+            )
+          ),
+          { id: "asc" }, // tie-breaker
+        ]
+      : [{ createdAt: "desc" }];
+
+  // -------------------------
+  // Filters
+  // -------------------------
+  const query: Prisma.TeacherWhereInput = {};
+
+  if (searchParams.classId) {
+    query.periods = {
+      some: { classId: parseInt(searchParams.classId) },
+    };
+  }
+
+  if (searchParams.search) {
+    query.name = {
+      contains: searchParams.search,
+      mode: "insensitive",
+    };
+  }
+
+  // -------------------------
+  // Data Fetch
+  // -------------------------
+  const [data, count] = await prisma.$transaction([
+    prisma.teacher.findMany({
+      where: query,
+      include: {
+        subjects: true,
+        classes: true,
+      },
+      orderBy,
+      take: ITEM_PER_PAGE,
+      skip: ITEM_PER_PAGE * (page - 1),
+    }),
+    prisma.teacher.count({ where: query }),
+  ]);
+
+  // -------------------------
+  // Columns
+  // -------------------------
   const columns = [
     { header: "Info", accessor: "info" },
     {
       header: "Teacher ID",
-      accessor: "teacherId",
+      accessor: "username",
+      sortable: true,
+      sortKey: "username",
       className: "hidden md:table-cell",
     },
     {
@@ -38,11 +116,15 @@ const TeacherListPage = async ({
       className: "hidden md:table-cell",
     },
     {
-      header: "Classes",
+      header: "Supervising",
       accessor: "classes",
       className: "hidden md:table-cell",
     },
-    { header: "Phone", accessor: "phone", className: "hidden lg:table-cell" },
+    {
+      header: "Phone",
+      accessor: "phone",
+      className: "hidden lg:table-cell",
+    },
     {
       header: "Address",
       accessor: "address",
@@ -51,6 +133,9 @@ const TeacherListPage = async ({
     ...(role === Role.ADMIN ? [{ header: "Actions", accessor: "action" }] : []),
   ];
 
+  // -------------------------
+  // Row Renderer
+  // -------------------------
   const renderRow = (item: TeacherList) => (
     <tr
       key={item.id}
@@ -64,11 +149,12 @@ const TeacherListPage = async ({
           height={40}
           className="md:hidden xl:block w-10 h-10 rounded-full object-cover"
         />
-        <div className="flex flex-col">
+        <div>
           <h3 className="font-semibold">{item.name}</h3>
           <p className="text-xs text-gray-500">{item.email}</p>
         </div>
       </td>
+
       <td className="hidden md:table-cell">{item.username}</td>
       <td className="hidden md:table-cell">
         {item.subjects.map((s) => s.name).join(", ")}
@@ -76,76 +162,53 @@ const TeacherListPage = async ({
       <td className="hidden md:table-cell">
         {item.classes.map((c) => c.name).join(", ")}
       </td>
-      <td className="hidden md:table-cell">{item.phone}</td>
-      <td className="hidden md:table-cell">{item.address}</td>
-      <td>
-        <div className="flex items-center gap-2">
-          <Link href={`/list/teachers/${item.id}`}>
-            <button className="w-7 h-7 flex items-center justify-center rounded-full bg-lamaSky">
-              <Image src="/view.png" alt="" width={16} height={16} />
-            </button>
-          </Link>
-          {role === Role.ADMIN && (
+      <td className="hidden lg:table-cell">{item.phone}</td>
+      <td className="hidden lg:table-cell">{item.address}</td>
+
+      {role === Role.ADMIN && (
+        <td>
+          <div className="flex gap-2">
+            <Link href={`/list/teachers/${item.id}`}>
+              <button className="w-7 h-7 rounded-full bg-lamaSky flex items-center justify-center">
+                <Image src="/view.png" alt="" width={16} height={16} />
+              </button>
+            </Link>
             <FormContainer table="teacher" type="delete" id={item.id} />
-          )}
-        </div>
-      </td>
+          </div>
+        </td>
+      )}
     </tr>
   );
-
-  const { page, ...queryParams } = searchParams;
-  const p = page ? parseInt(page) : 1;
-
-  const query: Prisma.TeacherWhereInput = {};
-
-  if (queryParams) {
-    for (const [key, value] of Object.entries(queryParams)) {
-      if (!value) continue;
-      switch (key) {
-        case "classId":
-          query.lessons = { some: { classId: parseInt(value) } };
-          break;
-        case "search":
-          query.name = { contains: value, mode: "insensitive" };
-          break;
-      }
-    }
-  }
-
-  const [data, count] = await prisma.$transaction([
-    prisma.teacher.findMany({
-      where: query,
-      include: { subjects: true, classes: true },
-      take: ITEM_PER_PAGE,
-      skip: ITEM_PER_PAGE * (p - 1),
-    }),
-    prisma.teacher.count({ where: query }),
-  ]);
 
   return (
     <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">
       {/* TOP */}
-      <div className="flex items-center justify-between">
+      <div className="flex justify-between items-center">
         <h1 className="hidden md:block text-lg font-semibold">All Teachers</h1>
-        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+
+        <div className="flex gap-4 items-center">
           <TableSearch />
-          <div className="flex items-center gap-4 self-end">
-            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
-              <Image src="/filter.png" alt="" width={14} height={14} />
-            </button>
-            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
-              <Image src="/sort.png" alt="" width={14} height={14} />
-            </button>
-            {role === Role.ADMIN && (
-              <FormContainer table="teacher" type="create" />
-            )}
-          </div>
+          {role === Role.ADMIN && (
+            <FormContainer table="teacher" type="create" />
+          )}
         </div>
       </div>
-      {/* LIST */}
-      <Table columns={columns} renderRow={renderRow} data={data} />
+
+      {/* TABLE */}
+      <Table
+        columns={columns}
+        data={data}
+        renderRow={renderRow}
+        sort={{
+          field: sortField,
+          order: sortOrder,
+          basePath: "/list/teachers",
+          params: searchParams,
+        }}
+      />
+
       {/* PAGINATION */}
-      <Pagination page={p} count={count} />
+      <Pagination page={page} count={count} />
     </div>
   );
 };

@@ -16,14 +16,14 @@ const AnnouncementListPage = async ({
   searchParams: { [key: string]: string | undefined };
 }) => {
   const session = await getSession();
-  const user = session?.user;
+  const currentUser = session?.user;
 
-  if (!user) {
+  if (!currentUser) {
     return <div className="p-4">Unauthorized</div>;
   }
 
-  const role = user.role.toLowerCase(); // "TEACHER" -> "teacher"
-  const currentUserId = user.id;
+  const role = currentUser.role.toLowerCase(); // "TEACHER" -> "teacher"
+  const currentUserId = currentUser.id;
 
   const columns = [
     { header: "Title", accessor: "title" },
@@ -71,18 +71,16 @@ const AnnouncementListPage = async ({
   }
 
   // ROLE CONDITIONS
-  const roleConditions = {
-    teacher: { lessons: { some: { teacherId: currentUserId } } },
-    student: { students: { some: { id: currentUserId } } },
-    parent: { students: { some: { parentId: currentUserId } } },
-  };
+  // const roleConditions = {
+  //   teacher: { periods: { some: { teacherId: currentUserId } } },
+  //   student: { students: { some: { id: currentUserId } } },
+  //   parent: { students: { some: { parentId: currentUserId } } },
+  // };
 
   if (role !== "admin") {
-    query.OR = [
-      { classId: null },
-      { class: roleConditions[role as keyof typeof roleConditions] || {} },
-    ];
+    query.OR = [{ classId: null }];
   }
+  // { class: roleConditions[role as keyof typeof roleConditions] || {} },
 
   const [data, count] = await prisma.$transaction([
     prisma.announcement.findMany({

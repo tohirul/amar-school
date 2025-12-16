@@ -27,12 +27,12 @@ const SingleStudentPage = async ({
 
   const student:
     | (Student & {
-        class: Class & { _count: { lessons: number } };
+        class: Class & { _count: { periods: number } };
       })
     | null = await prisma.student.findUnique({
     where: { id },
     include: {
-      class: { include: { _count: { select: { lessons: true } } } },
+      class: { include: { _count: { select: { periods: true } } } },
     },
   });
 
@@ -126,7 +126,7 @@ const SingleStudentPage = async ({
             {/* LESSONS */}
             <div className="bg-white p-4 rounded-md flex gap-4 w-full md:w-[48%] xl:w-[45%] 2xl:w-[48%]">
               <Image
-                src="/singleLesson.png"
+                src="/singlePeriod.png"
                 alt=""
                 width={24}
                 height={24}
@@ -134,9 +134,9 @@ const SingleStudentPage = async ({
               />
               <div>
                 <h1 className="text-xl font-semibold">
-                  {student.class._count.lessons}
+                  {student.class._count.periods}
                 </h1>
-                <span className="text-sm text-gray-400">Lessons</span>
+                <span className="text-sm text-gray-400">Periods</span>
               </div>
             </div>
             {/* CLASS */}
@@ -170,9 +170,9 @@ const SingleStudentPage = async ({
           <div className="mt-4 flex gap-4 flex-wrap text-xs text-gray-500">
             <Link
               className="p-3 rounded-md bg-lamaSkyLight"
-              href={`/list/lessons?classId=${student.class.id}`}
+              href={`/list/periods?classId=${student.class.id}`}
             >
-              Student&apos;s Lessons
+              Student&apos;s Periods
             </Link>
             <Link
               className="p-3 rounded-md bg-lamaPurpleLight"
