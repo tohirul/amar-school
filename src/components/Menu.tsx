@@ -51,9 +51,9 @@ const menuItems = [
         visible: ["SUPER_ADMIN", "ADMIN", "TEACHER"],
       },
       {
-        icon: "/lesson.png",
-        label: "Lessons",
-        href: "/list/lessons",
+        icon: "/period.png",
+        label: "Periods",
+        href: "/list/periods",
         visible: ["SUPER_ADMIN", "ADMIN", "TEACHER"],
       },
       {
