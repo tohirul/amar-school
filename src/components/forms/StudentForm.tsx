@@ -20,7 +20,7 @@ import {
 } from "@/lib/actions";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
-import { CldUploadWidget } from "next-cloudinary";
+// import { CldUploadWidget } from "next-cloudinary";
 
 const StudentForm = ({
   type,
@@ -41,7 +41,7 @@ const StudentForm = ({
     resolver: zodResolver(studentSchema),
   });
 
-  const [img, setImg] = useState<any>();
+  // const [img, setImg] = useState<any>();
 
   const [state, formAction] = useFormState(
     type === "create" ? createStudent : updateStudent,
@@ -51,8 +51,12 @@ const StudentForm = ({
     }
   );
 
+  // const onSubmit = handleSubmit((data) => {
+  //   formAction({ ...data, img: img?.secure_url });
+  // });
+
   const onSubmit = handleSubmit((data) => {
-    formAction({ ...data, img: img?.secure_url });
+    formAction({ ...data });
   });
 
   const router = useRouter();
@@ -102,7 +106,7 @@ const StudentForm = ({
       <span className="text-xs text-gray-400 font-medium">
         Personal Information
       </span>
-      <CldUploadWidget
+      {/* <CldUploadWidget
         uploadPreset="school"
         onSuccess={(result, { widget }) => {
           setImg(result.info);
@@ -120,7 +124,7 @@ const StudentForm = ({
             </div>
           );
         }}
-      </CldUploadWidget>
+      </CldUploadWidget>*/}
       <div className="flex justify-between flex-wrap gap-4">
         <InputField
           label="First Name"
