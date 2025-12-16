@@ -9,6 +9,14 @@ const ROUTE_ROLE_MAP: Record<string, Role[]> = {
   "/teacher": [Role.TEACHER, Role.ADMIN],
   "/student": [Role.STUDENT],
   "/parent": [Role.PARENT],
+  "/list": [
+    Role.ADMIN,
+    Role.MANAGER,
+    Role.COUNSELOR,
+    Role.TEACHER,
+    Role.STUDENT,
+    Role.PARENT,
+  ],
 };
 
 const VALID_ROLES = new Set(Object.values(Role));
@@ -65,5 +73,6 @@ export const config = {
     "/teacher/:path*",
     "/student/:path*",
     "/parent/:path*",
+    "/list/:path*",
   ],
 };
