@@ -8,14 +8,14 @@ const StudentPage = async () => {
   const session = await getSession();
   const user = session?.user;
 
-  if (!user) {
+  if (!user?.id || !user.studentId) {
     return <div className="p-4">Unauthorized</div>;
   }
 
   // Fetch the class for the current student
   const classItem = await prisma.class.findMany({
     where: {
-      students: { some: { id: user.id } },
+      students: { some: { id: user.studentId } },
     },
   });
 

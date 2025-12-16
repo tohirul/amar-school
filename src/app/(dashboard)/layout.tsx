@@ -3,6 +3,7 @@ import Navbar from "@/components/Navbar";
 import { getSessionUser } from "@/lib/sessions";
 import Image from "next/image";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 export default async function DashboardLayout({
   children,
@@ -14,9 +15,8 @@ export default async function DashboardLayout({
 
   // Defensive fallback (should never happen)
   if (!user) {
-    return null;
+    redirect("/sign-in");
   }
-
   return (
     <div className="h-screen flex">
       {/* LEFT */}

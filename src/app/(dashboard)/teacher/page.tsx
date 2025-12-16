@@ -6,12 +6,12 @@ const TeacherPage = async () => {
   const session = await getSession();
   const user = session?.user;
 
-  if (!user || user.role !== "TEACHER") {
+  if (!user || user.role !== "TEACHER" || !user.teacherId) {
     // Optionally, redirect or render an unauthorized message
     return <div className="p-4">Unauthorized</div>;
   }
 
-  const userId = user.id;
+  const userId = user.teacherId;
 
   return (
     <div className="flex-1 p-4 flex gap-4 flex-col xl:flex-row">
