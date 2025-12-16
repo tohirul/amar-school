@@ -8,7 +8,6 @@ datasource db {
 }
 
 enum Role {
-  // System roles
   ADMIN
   MANAGER
   COUNSELOR
@@ -32,35 +31,31 @@ enum Day {
 }
 
 model User {
-  id              String   @id @default(uuid())
-  username        String   @unique
-  email           String?  @unique
-  phone           String?  @unique
+  id              String  @id @default(uuid())
+  username        String  @unique
+  email           String? @unique
+  phone           String? @unique
   password        String
-  role            Role     @default(GUEST)
-  isActive        Boolean  @default(true)
-  isEmailVerified Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  role            Role    @default(GUEST)
+  isActive        Boolean @default(true)
+  isEmailVerified Boolean @default(false)
 
   failedLoginAttempts  Int       @default(0)
   lockedUntil          DateTime?
   passwordResetToken   String?
   passwordResetExpires DateTime?
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   sessions  Session[]
   auditLogs AuditLog[]
 
-  // 1-1 RELATIONS
-  teacherProfile Teacher? @relation("TeacherUser", fields: [teacherId], references: [id])
-  teacherId      String?  @unique
-
-  studentProfile Student? @relation("StudentUser", fields: [studentId], references: [id])
-  studentId      String?  @unique
-
-  parentProfile Parent? @relation("ParentUser", fields: [parentId], references: [id])
-  parentId      String? @unique
-  Admin         Admin?
+  // role profiles (NO foreign keys here)
+  student Student?
+  teacher Teacher?
+  parent  Parent?
+  admin   Admin?
 
   @@map("users")
 }
@@ -68,7 +63,7 @@ model User {
 model Session {
   id               Int      @id @default(autoincrement())
   userId           String
-  user             User     @relation(fields: [userId], references: [id])
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   refreshTokenHash String
   userAgent        String?
   ipAddress        String?
@@ -83,7 +78,7 @@ model Session {
 model AuditLog {
   id        Int      @id @default(autoincrement())
   userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   action    String
   meta      Json?
   createdAt DateTime @default(now())
@@ -93,79 +88,82 @@ model AuditLog {
 
 model Admin {
   id     String @id @default(uuid())
-  user   User   @relation(fields: [userId], references: [id])
   userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // additional admin-specific fields can be added herea
   @@map("admins")
 }
 
 model Teacher {
-  id     String  @id @default(uuid())
-  user   User?   @relation("TeacherUser")
-  userId String? @unique
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  username  String    @unique
+  username  String   @unique
   name      String
   surname   String
-  email     String?   @unique
-  phone     String?   @unique
+  email     String?  @unique
+  phone     String?  @unique
   address   String
   img       String?
   bloodType String
   sex       UserSex
-  createdAt DateTime  @default(now())
-  subjects  Subject[]
-  lessons   Lesson[]
-  classes   Class[]
   birthday  DateTime
+  createdAt DateTime @default(now())
+
+  subjects Subject[]
+  periods  Period[]
+  classes  Class[]
 
   @@map("teachers")
 }
 
 model Parent {
-  id     String  @id @default(uuid())
-  user   User?   @relation("ParentUser")
-  userId String? @unique
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  username  String    @unique
+  username  String   @unique
   name      String
   surname   String
-  email     String?   @unique
-  phone     String    @unique
+  email     String?  @unique
+  phone     String   @unique
   address   String
-  password  String?
-  createdAt DateTime  @default(now())
-  students  Student[]
+  createdAt DateTime @default(now())
+
+  students Student[]
 
   @@map("parents")
 }
 
 model Student {
-  id     String  @id @default(uuid())
-  user   User?   @relation("StudentUser")
-  userId String? @unique
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  username    String       @unique
-  name        String
-  surname     String
-  email       String?      @unique
-  phone       String?      @unique
-  password    String?
-  address     String
-  img         String?
-  bloodType   String
-  sex         UserSex
-  createdAt   DateTime     @default(now())
-  parentId    String
-  parent      Parent       @relation(fields: [parentId], references: [id])
-  classId     Int
-  class       Class        @relation(fields: [classId], references: [id])
-  gradeId     Int
-  grade       Grade        @relation(fields: [gradeId], references: [id])
+  username  String   @unique
+  name      String
+  surname   String
+  email     String?  @unique
+  phone     String?  @unique
+  address   String
+  img       String?
+  bloodType String
+  sex       UserSex
+  birthday  DateTime
+  createdAt DateTime @default(now())
+
+  parentId String
+  parent   Parent @relation(fields: [parentId], references: [id])
+
+  classId Int
+  class   Class @relation(fields: [classId], references: [id])
+
+  gradeId Int
+  grade   Grade @relation(fields: [gradeId], references: [id])
+
   attendances Attendance[]
   results     Result[]
-  birthday    DateTime
 
   @@map("students")
 }
@@ -175,7 +173,7 @@ model Grade {
   level Int @unique
 
   students Student[]
-  classess Class[]
+  classes  Class[]
 
   @@map("grades")
 }
@@ -185,56 +183,83 @@ model Class {
   name     String @unique
   capacity Int
 
-  supervisorId  String?
-  supervisor    Teacher?       @relation(fields: [supervisorId], references: [id])
-  lessons       Lesson[]
+  gradeId Int
+  grade   Grade @relation(fields: [gradeId], references: [id])
+
+  supervisorId String?
+  supervisor   Teacher? @relation(fields: [supervisorId], references: [id])
+
+  periods       Period[]
   students      Student[]
-  gradeId       Int
-  grade         Grade          @relation(fields: [gradeId], references: [id])
   events        Event[]
   announcements Announcement[]
+  Exam          Exam[]
 
   @@map("classes")
 }
 
 model Subject {
-  id       Int       @id @default(autoincrement())
-  name     String    @unique
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
   teachers Teacher[]
-  lessons  Lesson[]
+  periods  Period[]
+  Exam     Exam[]
 
   @@map("subjects")
 }
 
-model Lesson {
+model Period {
   id        Int      @id @default(autoincrement())
   name      String
   day       Day
   startTime DateTime
   endTime   DateTime
 
-  subjectId   Int
-  subject     Subject      @relation(fields: [subjectId], references: [id])
-  classId     Int
-  class       Class        @relation(fields: [classId], references: [id])
-  teacherId   String
-  teacher     Teacher      @relation(fields: [teacherId], references: [id])
+  subjectId Int
+  subject   Subject @relation(fields: [subjectId], references: [id])
+
+  classId Int
+  class   Class @relation(fields: [classId], references: [id])
+
+  teacherId String
+  teacher   Teacher @relation(fields: [teacherId], references: [id])
+
   exams       Exam[]
   assignments Assignment[]
   attendances Attendance[]
 
-  @@map("lessons")
+  @@map("periods")
+}
+
+enum ExamType {
+  CLASS_TEST
+  MID_TERM
+  TERM_FINAL
+  RETAKE
 }
 
 model Exam {
   id        Int      @id @default(autoincrement())
   title     String
+  type      ExamType
   startTime DateTime
   endTime   DateTime
 
-  lessonId Int
-  lesson   Lesson   @relation(fields: [lessonId], references: [id])
-  results  Result[]
+  periodId Int
+  period   Period @relation(fields: [periodId], references: [id])
+
+  classId Int? // Only for mid-term / final exams
+  class   Class? @relation(fields: [classId], references: [id])
+
+  subjectId Int? // Only for class tests
+  subject   Subject? @relation(fields: [subjectId], references: [id])
+
+  originalExamId Int?
+  originalExam   Exam?  @relation("RetakeReference", fields: [originalExamId], references: [id])
+  retakes        Exam[] @relation("RetakeReference")
+
+  results Result[]
 
   @@map("exams")
 }
@@ -245,9 +270,10 @@ model Assignment {
   startDate DateTime
   dueDate   DateTime
 
-  lessonId Int
-  lesson   Lesson   @relation(fields: [lessonId], references: [id])
-  results  Result[]
+  periodId Int
+  period   Period @relation(fields: [periodId], references: [id])
+
+  results Result[]
 
   @@map("assignments")
 }
@@ -256,12 +282,13 @@ model Result {
   id    Int @id @default(autoincrement())
   score Int
 
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
   examId       Int?
   exam         Exam?       @relation(fields: [examId], references: [id])
   assignmentId Int?
   assignment   Assignment? @relation(fields: [assignmentId], references: [id])
-  studentId    String
-  student      Student     @relation(fields: [studentId], references: [id])
 
   @@map("results")
 }
@@ -273,8 +300,9 @@ model Attendance {
 
   studentId String
   student   Student @relation(fields: [studentId], references: [id])
-  lessonId  Int
-  lesson    Lesson  @relation(fields: [lessonId], references: [id])
+
+  periodId Int
+  period   Period @relation(fields: [periodId], references: [id])
 
   @@map("attendances")
 }
@@ -303,4 +331,3 @@ model Announcement {
 
   @@map("announcements")
 }
-

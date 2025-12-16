@@ -9,7 +9,7 @@
   - You are about to drop the `Event` table. If the table is not empty, all the data it contains will be lost.
   - You are about to drop the `Exam` table. If the table is not empty, all the data it contains will be lost.
   - You are about to drop the `Grade` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `Lesson` table. If the table is not empty, all the data it contains will be lost.
+  - You are about to drop the `Period` table. If the table is not empty, all the data it contains will be lost.
   - You are about to drop the `Parent` table. If the table is not empty, all the data it contains will be lost.
   - You are about to drop the `Result` table. If the table is not empty, all the data it contains will be lost.
   - You are about to drop the `Student` table. If the table is not empty, all the data it contains will be lost.
@@ -45,13 +45,13 @@ ALTER TABLE "Event" DROP CONSTRAINT "Event_classId_fkey";
 ALTER TABLE "Exam" DROP CONSTRAINT "Exam_lessonId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Lesson" DROP CONSTRAINT "Lesson_classId_fkey";
+ALTER TABLE "Period" DROP CONSTRAINT "Period_classId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Lesson" DROP CONSTRAINT "Lesson_subjectId_fkey";
+ALTER TABLE "Period" DROP CONSTRAINT "Period_subjectId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Lesson" DROP CONSTRAINT "Lesson_teacherId_fkey";
+ALTER TABLE "Period" DROP CONSTRAINT "Period_teacherId_fkey";
 
 -- DropForeignKey
 ALTER TABLE "Result" DROP CONSTRAINT "Result_assignmentId_fkey";
@@ -102,7 +102,7 @@ DROP TABLE "Exam";
 DROP TABLE "Grade";
 
 -- DropTable
-DROP TABLE "Lesson";
+DROP TABLE "Period";
 
 -- DropTable
 DROP TABLE "Parent";
