@@ -96,12 +96,31 @@ export async function getSession() {
 
   const sessions = await prisma.session.findMany({
     where: { revoked: false, expiresAt: { gt: new Date() } },
-    include: { user: true },
+    include: {
+      user: {
+        include: {
+          teacher: true,
+          student: true,
+          parent: true,
+        },
+      },
+    },
   });
 
   for (const session of sessions) {
     if (await bcrypt.compare(token, session.refreshTokenHash)) {
-      return session;
+      return {
+        ...session,
+        user: {
+          id: session.user.id,
+          username: session.user.username,
+          role: session.user.role,
+
+          studentId: session.user.student?.id ?? null,
+          teacherId: session.user.teacher?.id ?? null,
+          parentId: session.user.parent?.id ?? null,
+        },
+      };
     }
   }
 

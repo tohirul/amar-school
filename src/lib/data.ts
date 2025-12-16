@@ -457,7 +457,7 @@ export const classesData = [
   },
 ];
 
-export const lessonsData = [
+export const periodsData = [
   {
     id: 1,
     subject: "Math",
@@ -914,7 +914,6 @@ export const announcementsData = [
     date: "2025-01-01",
   },
 ];
-
 
 // YOU SHOULD CHANGE THE DATES OF THE EVENTS TO THE CURRENT DATE TO SEE THE EVENTS ON THE CALENDAR
 export const calendarEvents = [

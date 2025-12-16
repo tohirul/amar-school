@@ -1,3 +1,4 @@
+import { ExamType } from "@prisma/client";
 import { z } from "zod";
 
 export const subjectSchema = z.object({
@@ -79,11 +80,117 @@ export const studentSchema = z.object({
 export type StudentSchema = z.infer<typeof studentSchema>;
 
 export const examSchema = z.object({
-  id: z.coerce.number().optional(),
-  title: z.string().min(1, { message: "Title name is required!" }),
-  startTime: z.coerce.date({ message: "Start time is required!" }),
-  endTime: z.coerce.date({ message: "End time is required!" }),
-  lessonId: z.coerce.number({ message: "Lesson is required!" }),
+  title: z.string().min(1),
+  startTime: z.string(),
+  endTime: z.string(),
+  periodId: z.number().optional(),
+  classId: z.number().optional(),
+  subjectId: z.number().optional(),
+  originalExamId: z.number().optional(),
+  type: z.nativeEnum(ExamType),
 });
 
 export type ExamSchema = z.infer<typeof examSchema>;
+
+export const parentSchema = z.object({
+  id: z.string().optional(),
+
+  username: z
+    .string()
+    .min(3, { message: "Username must be at least 3 characters long!" })
+    .max(20, { message: "Username must be at most 20 characters long!" }),
+
+  password: z
+    .string()
+    .min(8, { message: "Password must be at least 8 characters long!" })
+    .optional()
+    .or(z.literal("")),
+
+  name: z.string().min(1, { message: "First name is required!" }),
+  surname: z.string().min(1, { message: "Last name is required!" }),
+
+  email: z
+    .string()
+    .email({ message: "Invalid email address!" })
+    .optional()
+    .or(z.literal("")),
+
+  phone: z.string().min(1, { message: "Phone number is required!" }),
+  address: z.string().min(1, { message: "Address is required!" }),
+});
+
+export type ParentSchema = z.infer<typeof parentSchema>;
+
+export const periodSchema = z
+  .object({
+    id: z.number().optional(),
+
+    name: z.string().min(2, "Period name is required").max(100),
+
+    day: z.enum(["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"]),
+
+    startTime: z.coerce.date(),
+    endTime: z.coerce.date(),
+
+    subjectId: z.coerce.number().int().positive(),
+    classId: z.coerce.number().int().positive(),
+    teacherId: z.string().min(1),
+  })
+  .refine((data) => data.endTime > data.startTime, {
+    message: "End time must be after start time",
+    path: ["endTime"],
+  });
+
+export type PeriodSchema = z.infer<typeof periodSchema>;
+
+export const assignmentSchema = z.object({
+  id: z.coerce.number().optional(),
+  title: z.string().min(1, { message: "Title is required!" }),
+  startDate: z.coerce.date({ message: "Start date is required!" }),
+  dueDate: z.coerce.date({ message: "Due date is required!" }),
+  periodId: z.coerce.number({ message: "Period is required!" }),
+});
+
+export type AssignmentSchema = z.infer<typeof assignmentSchema>;
+
+export const resultSchema = z.object({
+  score: z
+    .number({ invalid_type_error: "Score must be a number" })
+    .min(0, "Score cannot be negative"),
+  examId: z.number().optional().nullable(),
+  assignmentId: z.number().optional().nullable(),
+  studentId: z.string().min(1, "Student is required"),
+});
+
+export type ResultSchema = z.infer<typeof resultSchema>;
+
+export const attendanceSchema = z.object({
+  id: z.coerce.number().optional(),
+  date: z.coerce.date({ message: "Date is required!" }),
+  present: z.coerce.boolean(),
+  studentId: z.string().min(1, { message: "Student is required!" }),
+  periodId: z.coerce.number({ message: "Period is required!" }),
+});
+
+export type AttendanceSchema = z.infer<typeof attendanceSchema>;
+
+export const eventSchema = z.object({
+  id: z.coerce.number().optional(),
+  title: z.string().min(1, { message: "Title is required!" }),
+  description: z.string().min(1, { message: "Description is required!" }),
+  startTime: z.coerce.date({ message: "Start time is required!" }),
+  endTime: z.coerce.date({ message: "End time is required!" }),
+  classId: z.coerce.number().optional(), // nullable in Prisma
+});
+
+export type EventSchema = z.infer<typeof eventSchema>;
+
+export const announcementSchema = z.object({
+  id: z.coerce.number().optional(),
+  title: z.string().min(1, { message: "Title is required!" }),
+  description: z.string().min(1, { message: "Description is required!" }),
+  date: z.coerce.date({ message: "Date is required!" }),
+  classId: z.coerce.number().optional(), // nullable in Prisma
+});
+
+export type AnnouncementSchema = z.infer<typeof announcementSchema>;
