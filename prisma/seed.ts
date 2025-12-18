@@ -1,54 +1,40 @@
-import { PrismaClient, Role, UserSex, Day, ExamType } from "@prisma/client";
+import {
+  PrismaClient,
+  Role,
+  UserSex,
+  Day,
+  ExamCategory,
+  AssignmentType,
+  GradeLetter,
+} from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("Starting seed...");
+  console.log("Seeding started...");
 
   const hashedPassword = await bcrypt.hash("pass123", 10);
 
   // ===============================
-  // 1. CREATE ADMIN USERS + PROFILES
+  // 1. CREATE ADMIN USERS
   // ===============================
   const adminUsers = [];
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 2; i++) {
     const user = await prisma.user.create({
       data: {
-        username: i === 0 ? "superadmin" : `admin${i}`,
-        email: i === 0 ? "superadmin@example.com" : `admin${i}@example.com`,
-        phone: `010000000${i}`,
+        username: `admin${i + 1}`,
+        email: `admin${i + 1}@example.com`,
         password: hashedPassword,
         role: Role.ADMIN,
       },
     });
-
     await prisma.admin.create({ data: { userId: user.id } });
     adminUsers.push(user);
   }
 
   // ===============================
-  // 2. CREATE GRADES
-  // ===============================
-  const gradeIds: number[] = [];
-  for (let i = 1; i <= 6; i++) {
-    const grade = await prisma.grade.create({ data: { level: i } });
-    gradeIds.push(grade.id);
-  }
-
-  // ===============================
-  // 3. CREATE CLASSES
-  // ===============================
-  const classIds: number[] = [];
-  for (let i = 1; i <= 6; i++) {
-    const cls = await prisma.class.create({
-      data: { name: `${i}A`, gradeId: gradeIds[i - 1], capacity: 20 },
-    });
-    classIds.push(cls.id);
-  }
-
-  // ===============================
-  // 4. CREATE SUBJECTS
+  // 2. CREATE SUBJECTS
   // ===============================
   const subjectNames = [
     "Mathematics",
@@ -62,22 +48,22 @@ async function main() {
     "Computer Science",
     "Art",
   ];
-  const subjectIds: number[] = [];
+
+  const subjects = [];
   for (const name of subjectNames) {
-    const subject = await prisma.subject.create({ data: { name } });
-    subjectIds.push(subject.id);
+    const sub = await prisma.subject.create({ data: { name } });
+    subjects.push(sub);
   }
 
   // ===============================
-  // 5. CREATE TEACHERS
+  // 3. CREATE TEACHERS
   // ===============================
-  const teacherIds: string[] = [];
-  for (let i = 1; i <= 15; i++) {
+  const teachers = [];
+  for (let i = 1; i <= 5; i++) {
     const user = await prisma.user.create({
       data: {
         username: `teacher${i}`,
         email: `teacher${i}@example.com`,
-        phone: `12345678${i}`,
         password: hashedPassword,
         role: Role.TEACHER,
       },
@@ -86,52 +72,76 @@ async function main() {
     const teacher = await prisma.teacher.create({
       data: {
         userId: user.id,
-        username: `teacher${i}`,
         name: `TName${i}`,
         surname: `TSurname${i}`,
-        email: `teacher${i}@example.com`,
-        phone: `12345678${i}`,
-        address: `Address ${i}`,
-        bloodType: "A+",
-        sex: i % 2 === 0 ? UserSex.MALE : UserSex.FEMALE,
-        birthday: new Date(1990, 1, 1),
-        subjects: { connect: [{ id: subjectIds[i % subjectIds.length] }] },
-        classes: { connect: [{ id: classIds[i % classIds.length] }] },
+        email: user.email!,
+        phone: `012345678${i}`,
+        subjects: {
+          connect: [
+            { id: subjects[i % subjects.length].id },
+            { id: subjects[(i + 1) % subjects.length].id },
+          ], // connect 2 subjects per teacher
+        },
       },
     });
 
-    teacherIds.push(teacher.id);
+    teachers.push(teacher);
   }
 
   // ===============================
-  // 6. CREATE PERIODS
+  // 4. CREATE CLASSES, SECTIONS, SEMESTERS, EXAM SESSIONS
   // ===============================
-  const periodIds: number[] = [];
-  for (let i = 1; i <= 30; i++) {
-    const period = await prisma.period.create({
+  const classes: any[] = [];
+  for (let i = 1; i <= 3; i++) {
+    const cls = await prisma.class.create({
       data: {
-        name: `Period ${i}`,
-        day: Object.values(Day)[i % 5],
-        startTime: new Date(2024, 1, 1, 9, 0),
-        endTime: new Date(2024, 1, 1, 11, 0),
-        classId: classIds[i % classIds.length],
-        subjectId: subjectIds[i % subjectIds.length],
-        teacherId: teacherIds[i % teacherIds.length],
+        name: `Class ${i}`,
+        supervisorId: teachers[i % teachers.length].id,
       },
     });
-    periodIds.push(period.id);
+
+    const section = await prisma.section.create({
+      data: {
+        name: "A",
+        capacity: 30,
+        roomNumber: `101-${i}`,
+        classId: cls.id,
+        classTeacherId: teachers[i % teachers.length].id,
+      },
+    });
+
+    const semester = await prisma.semester.create({
+      data: {
+        name: `Semester 1`,
+        startDate: new Date(2025, 0, 1),
+        endDate: new Date(2025, 5, 30),
+        classId: cls.id,
+      },
+    });
+
+    const examSession = await prisma.examSession.create({
+      data: {
+        name: `Mid Term Exams`,
+        startDate: new Date(2025, 1, 1),
+        endDate: new Date(2025, 1, 15),
+        semesterId: semester.id,
+      },
+    });
+
+    classes.push({ cls, section, semester, examSession });
   }
 
   // ===============================
-  // 7. CREATE PARENTS
+  // 5. CREATE PARENTS + STUDENTS
   // ===============================
-  const parentIds: string[] = [];
-  for (let i = 1; i <= 25; i++) {
+  const parents = [];
+  const students: any[] = [];
+
+  for (let i = 1; i <= 5; i++) {
     const user = await prisma.user.create({
       data: {
         username: `parent${i}`,
         email: `parent${i}@example.com`,
-        phone: `01755555${i}`,
         password: hashedPassword,
         role: Role.PARENT,
       },
@@ -140,109 +150,180 @@ async function main() {
     const parent = await prisma.parent.create({
       data: {
         userId: user.id,
-        username: `parent${i}`,
         name: `PName${i}`,
         surname: `PSurname${i}`,
-        phone: `01755555${i}`,
-        address: `Address ${i}`,
+        phone: `017000000${i}`,
       },
     });
 
-    parentIds.push(parent.id);
+    parents.push(parent);
+
+    for (let j = 1; j <= 3; j++) {
+      const studentUser = await prisma.user.create({
+        data: {
+          username: `student${i}-${j}`,
+          email: `student${i}-${j}@example.com`,
+          password: hashedPassword,
+          role: Role.STUDENT,
+        },
+      });
+
+      const clsIndex = (i + j - 2) % classes.length; // safe index
+      const student = await prisma.student.create({
+        data: {
+          userId: studentUser.id,
+          name: `SName${i}-${j}`,
+          surname: `SSurname${i}-${j}`,
+          sex: j % 2 === 0 ? UserSex.MALE : UserSex.FEMALE,
+          birthday: new Date(2015, 0, j),
+          parentId: parent.id,
+          sectionId: classes[clsIndex].section.id,
+          classId: classes[clsIndex].cls.id,
+        },
+      });
+
+      students.push(student);
+    }
   }
 
   // ===============================
-  // 8. CREATE STUDENTS
+  // 6. CREATE PERIODS
   // ===============================
-  for (let i = 1; i <= 50; i++) {
-    const user = await prisma.user.create({
+  const periods = [];
+  for (let i = 0; i < 9; i++) {
+    const clsIndex = i % classes.length;
+    const period = await prisma.period.create({
       data: {
-        username: `student${i}`,
-        email: `student${i}@example.com`,
-        phone: `01988888${i}`,
-        password: hashedPassword,
-        role: Role.STUDENT,
+        name: `Period ${i + 1}`,
+        day: Object.values(Day)[i % 5],
+        order: i + 1,
+        startTime: new Date(2025, 0, 1, 9 + i, 0),
+        endTime: new Date(2025, 0, 1, 10 + i, 0),
+        sectionId: classes[clsIndex].section.id,
+        subjectId: subjects[i % subjects.length].id,
+        teacherId: teachers[i % teachers.length].id,
       },
     });
-
-    await prisma.student.create({
-      data: {
-        userId: user.id,
-        username: `student${i}`,
-        name: `SName${i}`,
-        surname: `SSurname${i}`,
-        email: `student${i}@example.com`,
-        phone: `01988888${i}`,
-        address: `Address ${i}`,
-        bloodType: "O-",
-        sex: i % 2 === 0 ? UserSex.MALE : UserSex.FEMALE,
-        birthday: new Date(2014, 1, 1),
-        classId: classIds[i % classIds.length],
-        gradeId: gradeIds[i % gradeIds.length],
-        parentId: parentIds[i % parentIds.length],
-      },
-    });
+    periods.push(period);
   }
 
   // ===============================
-  // 9. CREATE EXAMS
+  // 7. CREATE ASSIGNMENTS
   // ===============================
-  // Class Tests
-  for (let i = 0; i < 10; i++) {
-    await prisma.exam.create({
+  const assignments = [];
+  for (let i = 0; i < periods.length; i++) {
+    const assignment = await prisma.assignment.create({
+      data: {
+        title: `Assignment ${i + 1}`,
+        type: AssignmentType.PERIODIC,
+        totalMarks: 100,
+        startDate: new Date(2025, 0, 1),
+        dueDate: new Date(2025, 0, 10),
+        periodId: periods[i].id,
+        teacherId: periods[i].teacherId,
+      },
+    });
+    assignments.push(assignment);
+  }
+
+  // ===============================
+  // 8. CREATE EXAMS
+  // ===============================
+  const exams = [];
+  for (let i = 0; i < periods.length; i++) {
+    const clsIndex = i % classes.length;
+    const exam = await prisma.exam.create({
       data: {
         title: `Class Test ${i + 1}`,
-        type: ExamType.CLASS_TEST,
+        category: ExamCategory.CLASS_TEST,
+        examDate: new Date(2025, 0, i + 1),
         startTime: new Date(2025, 0, i + 1, 10, 0),
         endTime: new Date(2025, 0, i + 1, 11, 0),
-        periodId: periodIds[i % periodIds.length],
-        subjectId: subjectIds[i % subjectIds.length],
+        periodId: periods[i].id,
+        subjectId: periods[i].subjectId,
+        sectionId: periods[i].sectionId,
+        examSessionId: classes[clsIndex].examSession.id,
+        totalMarks: 100,
       },
     });
+    exams.push(exam);
   }
 
-  // Mid-term Exams
-  for (let i = 0; i < classIds.length; i++) {
-    await prisma.exam.create({
+  // ===============================
+  // 9. CREATE RESULTS + GPA + ATTENDANCE
+  // ===============================
+  for (const student of students) {
+    // RESULTS
+    for (const exam of exams) {
+      await prisma.result.create({
+        data: {
+          studentId: student.id,
+          examId: exam.id,
+          score: Math.floor(Math.random() * 101),
+          remarks: "Good",
+        },
+      });
+    }
+
+    for (const assignment of assignments) {
+      await prisma.result.create({
+        data: {
+          studentId: student.id,
+          assignmentId: assignment.id,
+          score: Math.floor(Math.random() * 101),
+          remarks: "Well Done",
+        },
+      });
+    }
+
+    // ATTENDANCE
+    for (const period of periods) {
+      await prisma.attendance.create({
+        data: {
+          studentId: student.id,
+          periodId: period.id,
+          date: new Date(2025, 0, 1),
+          present: Math.random() > 0.2,
+        },
+      });
+    }
+
+    // GPA
+    for (const cls of classes) {
+      await prisma.gPA.create({
+        data: {
+          studentId: student.id,
+          semesterId: cls.semester.id,
+          sectionId: cls.section.id,
+          value: parseFloat((Math.random() * 4).toFixed(2)),
+          grade: [GradeLetter.A, GradeLetter.B, GradeLetter.C][
+            Math.floor(Math.random() * 3)
+          ],
+        },
+      });
+    }
+  }
+
+  // ===============================
+  // 10. CREATE EVENTS & ANNOUNCEMENTS
+  // ===============================
+  for (const cls of classes) {
+    await prisma.event.create({
       data: {
-        title: `Mid Term - Class ${i + 1}A`,
-        type: ExamType.MID_TERM,
-        startTime: new Date(2025, 1, 10, 9, 0),
-        endTime: new Date(2025, 1, 10, 12, 0),
-        periodId: periodIds[i % periodIds.length],
-        classId: classIds[i],
+        title: `Event for ${cls.cls.name}`,
+        description: `Description for ${cls.cls.name}`,
+        startTime: new Date(2025, 0, 15, 9, 0),
+        endTime: new Date(2025, 0, 15, 12, 0),
+        classId: cls.cls.id,
       },
     });
-  }
 
-  // Term Final Exams
-  for (let i = 0; i < classIds.length; i++) {
-    await prisma.exam.create({
+    await prisma.announcement.create({
       data: {
-        title: `Term Final - Class ${i + 1}A`,
-        type: ExamType.TERM_FINAL,
-        startTime: new Date(2025, 2, 15, 9, 0),
-        endTime: new Date(2025, 2, 15, 12, 0),
-        periodId: periodIds[i % periodIds.length],
-        classId: classIds[i],
-      },
-    });
-  }
-
-  // Retake Exam
-  const originalExam = await prisma.exam.findFirst({
-    where: { type: ExamType.MID_TERM },
-  });
-  if (originalExam) {
-    await prisma.exam.create({
-      data: {
-        title: `Mid Term Retake - ${originalExam.title}`,
-        type: ExamType.RETAKE,
-        startTime: new Date(2025, 3, 5, 9, 0),
-        endTime: new Date(2025, 3, 5, 12, 0),
-        periodId: periodIds[0],
-        classId: originalExam.classId!,
-        originalExamId: originalExam.id,
+        title: `Announcement for ${cls.cls.name}`,
+        description: `Announcement Description`,
+        date: new Date(),
+        classId: cls.cls.id,
       },
     });
   }

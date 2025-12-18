@@ -30,28 +30,60 @@ enum Day {
   FRIDAY
 }
 
+enum PeriodStatus {
+  ACTIVE
+  CANCELLED
+}
+
+enum AttendanceType {
+  REGULAR
+  EXAM
+}
+
+enum ExamCategory {
+  TERMINAL
+  CLASS_TEST
+  POP_QUIZ
+  RETAKE
+}
+
+enum AssignmentType {
+  PERIODIC
+  WEEKLY
+  SEMESTER
+  TERMINAL
+}
+
+enum GradeLetter {
+  A_PLUS
+  A
+  A_MINUS
+  B
+  C
+  D
+  F
+}
+
 model User {
-  id              String  @id @default(uuid())
-  username        String  @unique
-  email           String? @unique
-  phone           String? @unique
+  id              String   @id @default(uuid())
+  username        String   @unique
+  email           String?  @unique
+  phone           String?
   password        String
-  role            Role    @default(GUEST)
-  isActive        Boolean @default(true)
-  isEmailVerified Boolean @default(false)
+  role            Role     @default(GUEST)
+  isActive        Boolean  @default(true)
+  isEmailVerified Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   failedLoginAttempts  Int       @default(0)
   lockedUntil          DateTime?
   passwordResetToken   String?
   passwordResetExpires DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
   sessions  Session[]
   auditLogs AuditLog[]
 
-  // role profiles (NO foreign keys here)
   student Student?
   teacher Teacher?
   parent  Parent?
@@ -78,7 +110,7 @@ model Session {
 model AuditLog {
   id        Int      @id @default(autoincrement())
   userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user      User?    @relation(fields: [userId], references: [id])
   action    String
   meta      Json?
   createdAt DateTime @default(now())
@@ -87,9 +119,10 @@ model AuditLog {
 }
 
 model Admin {
-  id     String @id @default(uuid())
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
 
   @@map("admins")
 }
@@ -99,21 +132,18 @@ model Teacher {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  username  String   @unique
-  name      String
-  surname   String
-  email     String?  @unique
-  phone     String?  @unique
-  address   String
-  img       String?
-  bloodType String
-  sex       UserSex
-  birthday  DateTime
-  createdAt DateTime @default(now())
+  name    String
+  surname String
+  email   String?
+  phone   String?
 
-  subjects Subject[]
-  periods  Period[]
-  classes  Class[]
+  subjects Subject[] @relation("TeacherSubjects")
+
+  periods    Period[]
+  sections   Section[]
+  classes    Class[]
+  Assignment Assignment[]
+  createdAt  DateTime     @default(now())
 
   @@map("teachers")
 }
@@ -123,15 +153,12 @@ model Parent {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  username  String   @unique
   name      String
   surname   String
-  email     String?  @unique
-  phone     String   @unique
-  address   String
-  createdAt DateTime @default(now())
-
-  students Student[]
+  phone     String
+  address   String?
+  students  Student[]
+  createdAt DateTime  @default(now())
 
   @@map("parents")
 }
@@ -141,123 +168,169 @@ model Student {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  username  String   @unique
-  name      String
-  surname   String
-  email     String?  @unique
-  phone     String?  @unique
-  address   String
-  img       String?
-  bloodType String
-  sex       UserSex
-  birthday  DateTime
-  createdAt DateTime @default(now())
+  name     String
+  surname  String
+  sex      UserSex
+  birthday DateTime
 
   parentId String
-  parent   Parent @relation(fields: [parentId], references: [id])
+  parent   Parent @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  sectionId Int
+  section   Section @relation(fields: [sectionId], references: [id])
 
   classId Int
   class   Class @relation(fields: [classId], references: [id])
 
-  gradeId Int
-  grade   Grade @relation(fields: [gradeId], references: [id])
-
   attendances Attendance[]
   results     Result[]
+  gpas        GPA[]
+  createdAt   DateTime     @default(now())
 
   @@map("students")
 }
 
-model Grade {
-  id    Int @id @default(autoincrement())
-  level Int @unique
-
-  students Student[]
-  classes  Class[]
-
-  @@map("grades")
-}
-
 model Class {
-  id       Int    @id @default(autoincrement())
-  name     String @unique
-  capacity Int
-
-  gradeId Int
-  grade   Grade @relation(fields: [gradeId], references: [id])
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  description String?
 
   supervisorId String?
   supervisor   Teacher? @relation(fields: [supervisorId], references: [id])
 
-  periods       Period[]
-  students      Student[]
+  sections      Section[]
+  semesters     Semester[]
   events        Event[]
   announcements Announcement[]
-  Exam          Exam[]
+  students      Student[]
 
   @@map("classes")
 }
 
-model Subject {
-  id   Int    @id @default(autoincrement())
-  name String @unique
-
-  teachers Teacher[]
-  periods  Period[]
-  Exam     Exam[]
-
-  @@map("subjects")
-}
-
-model Period {
-  id        Int      @id @default(autoincrement())
-  name      String
-  day       Day
-  startTime DateTime
-  endTime   DateTime
-
-  subjectId Int
-  subject   Subject @relation(fields: [subjectId], references: [id])
+model Section {
+  id             Int     @id @default(autoincrement())
+  name           String
+  capacity       Int
+  roomNumber     String
+  classTeacherId String?
 
   classId Int
   class   Class @relation(fields: [classId], references: [id])
 
+  classTeacher Teacher? @relation(fields: [classTeacherId], references: [id])
+
+  students Student[]
+  periods  Period[]
+  exams    Exam[]
+  gpas     GPA[]
+
+  @@unique([classId, name])
+  @@map("sections")
+}
+
+model Semester {
+  id        Int      @id @default(autoincrement())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+
+  classId Int
+  class   Class @relation(fields: [classId], references: [id])
+
+  examSessions ExamSession[]
+  gpas         GPA[]
+
+  @@map("semesters")
+}
+
+model ExamSession {
+  id        Int      @id @default(autoincrement())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+
+  semesterId Int
+  semester   Semester @relation(fields: [semesterId], references: [id])
+
+  exams Exam[]
+
+  @@map("exam_sessions")
+}
+
+model Subject {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  periods  Period[]
+  exams    Exam[]
+  teachers Teacher[] @relation("TeacherSubjects")
+}
+
+model Period {
+  id        Int          @id @default(autoincrement())
+  name      String
+  day       Day
+  order     Int
+  startTime DateTime
+  endTime   DateTime
+  status    PeriodStatus @default(ACTIVE)
+
+  sectionId Int
+  section   Section @relation(fields: [sectionId], references: [id])
+
+  subjectId Int
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
   teacherId String
   teacher   Teacher @relation(fields: [teacherId], references: [id])
 
-  exams       Exam[]
-  assignments Assignment[]
+  assignments Assignment[] // 1:N
+  exams       Exam[] // 1:N
   attendances Attendance[]
 
+  @@unique([sectionId, day, order])
   @@map("periods")
 }
 
-enum ExamType {
-  CLASS_TEST
-  MID_TERM
-  TERM_FINAL
-  RETAKE
+model Attendance {
+  id      Int            @id @default(autoincrement())
+  date    DateTime
+  present Boolean
+  type    AttendanceType @default(REGULAR)
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  periodId Int
+  period   Period @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, periodId, date])
+  @@map("attendances")
 }
 
 model Exam {
-  id        Int      @id @default(autoincrement())
-  title     String
-  type      ExamType
-  startTime DateTime
-  endTime   DateTime
+  id         Int          @id @default(autoincrement())
+  title      String
+  category   ExamCategory
+  examDate   DateTime
+  startTime  DateTime
+  endTime    DateTime
+  totalMarks Int
 
-  periodId Int
-  period   Period @relation(fields: [periodId], references: [id])
+  subjectId Int
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
-  classId Int? // Only for mid-term / final exams
-  class   Class? @relation(fields: [classId], references: [id])
+  sectionId Int?
+  section   Section? @relation(fields: [sectionId], references: [id])
 
-  subjectId Int? // Only for class tests
-  subject   Subject? @relation(fields: [subjectId], references: [id])
+  periodId Int?
+  period   Period? @relation(fields: [periodId], references: [id])
+
+  examSessionId Int?
+  examSession   ExamSession? @relation(fields: [examSessionId], references: [id])
 
   originalExamId Int?
-  originalExam   Exam?  @relation("RetakeReference", fields: [originalExamId], references: [id])
-  retakes        Exam[] @relation("RetakeReference")
+  originalExam   Exam?  @relation("Retake", fields: [originalExamId], references: [id])
+  retakes        Exam[] @relation("Retake")
 
   results Result[]
 
@@ -265,13 +338,20 @@ model Exam {
 }
 
 model Assignment {
-  id        Int      @id @default(autoincrement())
-  title     String
-  startDate DateTime
-  dueDate   DateTime
+  id           Int            @id @default(autoincrement())
+  title        String
+  description  String?
+  instructions String?
+  type         AssignmentType
+  totalMarks   Int
+  startDate    DateTime
+  dueDate      DateTime
 
-  periodId Int
-  period   Period @relation(fields: [periodId], references: [id])
+  periodId Int?
+  period   Period? @relation(fields: [periodId], references: [id])
+
+  teacherId String
+  teacher   Teacher @relation(fields: [teacherId], references: [id])
 
   results Result[]
 
@@ -279,32 +359,43 @@ model Assignment {
 }
 
 model Result {
-  id    Int @id @default(autoincrement())
-  score Int
+  id      Int     @id @default(autoincrement())
+  score   Int
+  remarks String?
 
   studentId String
-  student   Student @relation(fields: [studentId], references: [id])
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  examId       Int?
-  exam         Exam?       @relation(fields: [examId], references: [id])
+  examId Int?
+  exam   Exam? @relation(fields: [examId], references: [id])
+
   assignmentId Int?
   assignment   Assignment? @relation(fields: [assignmentId], references: [id])
+
+  gpaId Int?
+  gpa   GPA? @relation(fields: [gpaId], references: [id])
 
   @@map("results")
 }
 
-model Attendance {
-  id      Int      @id @default(autoincrement())
-  date    DateTime
-  present Boolean
+model GPA {
+  id    Int         @id @default(autoincrement())
+  value Float
+  grade GradeLetter
 
   studentId String
-  student   Student @relation(fields: [studentId], references: [id])
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  periodId Int
-  period   Period @relation(fields: [periodId], references: [id])
+  semesterId Int
+  semester   Semester @relation(fields: [semesterId], references: [id])
 
-  @@map("attendances")
+  sectionId Int
+  section   Section @relation(fields: [sectionId], references: [id])
+
+  results Result[]
+
+  @@unique([studentId, semesterId, sectionId])
+  @@map("gpas")
 }
 
 model Event {
@@ -325,9 +416,8 @@ model Announcement {
   title       String
   description String
   date        DateTime
-
-  classId Int?
-  class   Class? @relation(fields: [classId], references: [id])
+  classId     Int?
+  class       Class?   @relation(fields: [classId], references: [id])
 
   @@map("announcements")
 }
